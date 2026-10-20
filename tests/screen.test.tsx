@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { loadOrder } from '../hooks/clawd'
+import { CYCLE_S, TAPE_WAV_BASE64 } from '../hooks/tape'
 
 function decode(cells: string, columns: number) {
   const bytes = Uint8Array.fromBase64(cells)
@@ -98,4 +99,14 @@ test('the VS Code band draws the screen as an SVG', async $ => {
   const svg = await ui.find({ type: 'Svg' })
   expect(String(svg?.props.source)).toContain('>Program: claude</text>')
   await ui.unmount()
+})
+
+test('the tape is one 8-bit mono WAV loop as long as the cycle', () => {
+  const bytes = Uint8Array.fromBase64(TAPE_WAV_BASE64)
+  const view = new DataView(bytes.buffer)
+  expect(String.fromCharCode(...bytes.subarray(0, 4))).toBe('RIFF')
+  expect(String.fromCharCode(...bytes.subarray(8, 12))).toBe('WAVE')
+  expect(view.getUint16(22, true)).toBe(1)
+  expect(view.getUint16(34, true)).toBe(8)
+  expect(view.getUint32(40, true)).toBe(Math.round(22050 * CYCLE_S))
 })

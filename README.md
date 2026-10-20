@@ -34,15 +34,25 @@ In the desktop app: click + next to the prompt box, then Plugins, Add marketplac
 
 ## Sound
 
-The clip is `sounds/load.wav`, about 20 seconds long, played once per loading cycle so the stripes stay in step with it. On a surface with no audio player the stripes run silently.
+The tape sound is synthesised when the plugin loads, from the Spectrum ROM's loader pulse timings: a pilot tone, a header block naming the program `claude`, a pause, a second pilot tone, then 15 seconds of data. One loop lasts about 20 seconds and plays once per loading cycle, so the stripes stay in step with it.
 
-## Regenerating the sound
+| Platform | Player |
+| --- | --- |
+| macOS | Claude Code's own audio playback |
+| Windows | Windows PowerShell's built-in `System.Media.SoundPlayer` |
+| Linux | `paplay`, `pw-play` or `aplay`, whichever is installed first in that order |
 
-`tools/make-wav.mjs` writes `sounds/load.wav` and `hooks/timeline.ts`, the start time of each part of the clip. Run it from the plugin folder:
+Where Claude Code can play the clip itself, it does. Otherwise the plugin hands the clip to the platform's player. If Linux has none of the three installed, a toast says so and the stripes run silently. Installing `pulseaudio-utils`, `pipewire` or `alsa-utils` adds one.
 
-```bash
-node tools/make-wav.mjs
-```
+## What it does on your machine
+
+- Reads the current conversation as it streams (your prompt, Claude's thinking and text, and tool names) to draw the latest lines on the loading screen. It draws them on your screen only.
+- Plays the tape sound. On macOS it uses Claude Code's audio playback. On Windows and Linux, where Claude Code has no player, it starts one child process per 20-second loop and passes the clip to it on standard input as base64:
+  - Windows: `powershell -NoProfile -NonInteractive -Command` with a fixed script that decodes the clip and plays it with `System.Media.SoundPlayer`.
+  - Linux: `sh -c` with a fixed script that decodes the clip with `base64 -d` and pipes it to `paplay`, `pw-play` or `aplay`.
+  The process is stopped when Claude's turn ends. The full commands are in `hooks/register.tsx`.
+- Reads one environment variable, `OS`, to tell Windows from Linux.
+- Makes no network requests, reads or writes no files, and stores no data.
 
 ## Licence
 

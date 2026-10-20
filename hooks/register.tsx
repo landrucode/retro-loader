@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import { CLAWD_HEIGHT, CLAWD_ORANGE, CLAWD_WIDTH, QUADRANTS, loadOrder, pixelAt } from './clawd'
-import { CYCLE_S, HEADER_DATA_S, PAUSE_S, PROGRAM_DATA_S, PROGRAM_PILOT_S } from './timeline'
+import { CYCLE_S, HEADER_DATA_S, PAUSE_S, PROGRAM_DATA_S, PROGRAM_PILOT_S, TAPE_WAV_BASE64 } from './tape'
 
 const RASTER = 'screen'
 const FRAME_MS = 40
@@ -361,24 +361,80 @@ async function elapsed($: EngineInterface): Promise<number | null> {
   return loading.hasSound ? Math.min(t, CYCLE_S) : t % CYCLE_S
 }
 
+// The engine plays clips on macOS. Where it has no player (a Linux or Windows
+// terminal) the call returns at once, and the clip goes to the host's own player:
+// Windows PowerShell's SoundPlayer, or on Linux paplay, pw-play or aplay. A child's
+// stdin takes text, so the clip crosses as base64 and the child decodes it.
+type Player = 'engine' | 'host' | 'none'
+let player: Player = 'engine'
+
+const WINDOWS_PLAYER = [
+  'powershell',
+  '-NoProfile',
+  '-NonInteractive',
+  '-Command',
+  '$b = [Convert]::FromBase64String([Console]::In.ReadToEnd()); ' +
+    '(New-Object System.Media.SoundPlayer (New-Object System.IO.MemoryStream (,$b))).PlaySync()',
+]
+const LINUX_PLAYER = [
+  'sh',
+  '-c',
+  'if command -v paplay >/dev/null 2>&1; then base64 -d | paplay; ' +
+    'elif command -v pw-play >/dev/null 2>&1; then base64 -d | pw-play -; ' +
+    'elif command -v aplay >/dev/null 2>&1; then base64 -d | aplay -q; ' +
+    'else echo "no paplay, pw-play or aplay found" >&2; exit 127; fi',
+]
+
+// Plays one clip through the host's player; resolves with why it failed, or null.
+async function playOnHost($: EngineInterface, stop: AbortController): Promise<string | null> {
+  const argv = (await $.env.get('OS')) === 'Windows_NT' ? WINDOWS_PLAYER : LINUX_PLAYER
+  const child = $.process.spawn({ argv, input: TAPE_WAV_BASE64 })
+  const kill = () => void child.return(undefined as never)
+  stop.signal.addEventListener('abort', kill, { once: true })
+  let stderr = ''
+  try {
+    for (;;) {
+      const piece = await child.next()
+      if (piece.done === true) {
+        if (stop.signal.aborted || piece.value.code === 0) return null
+        return stderr.trim() || `${argv[0]} exited with ${piece.value.code ?? piece.value.signal}`
+      }
+      if (piece.value.stream === 'stderr') stderr += piece.value.text
+    }
+  } catch (error: unknown) {
+    return stop.signal.aborted ? null : `${argv[0]}: ${String(error)}`
+  } finally {
+    stop.signal.removeEventListener('abort', kill)
+  }
+}
+
 // Plays the clip once per cycle rather than looping it in the player, whose
 // restart gap would otherwise build up against the stripes.
 async function playTape($: EngineInterface, stop: AbortController) {
   while (loading !== null && loading.stop === stop && !stop.signal.aborted) {
     const startedAt = await $.clock.now()
     loading.cycleStartedAt = startedAt
-    try {
-      await $.audio.play({ asset: 'sounds/load.wav' }, { signal: stop.signal })
-    } catch (error: unknown) {
-      loading.hasSound = false
-      $.ui.toast(`retro-loader: no sound (${String(error)})`)
-      return
+
+    if (player === 'engine') {
+      try {
+        await $.audio.play({ base64: TAPE_WAV_BASE64, mime: 'audio/wav' }, { signal: stop.signal })
+      } catch {
+        player = 'host'
+        continue
+      }
+      if (!stop.signal.aborted && (await $.clock.now()) - startedAt < (CYCLE_S * 1000) / 2) player = 'host'
+      continue
     }
-    // A terminal with no player resolves at once: carry on silent.
-    if (!stop.signal.aborted && (await $.clock.now()) - startedAt < (CYCLE_S * 1000) / 2) {
-      loading.hasSound = false
-      return
+
+    if (player === 'host') {
+      const failure = await playOnHost($, stop)
+      if (failure === null) continue
+      player = 'none'
+      $.ui.toast(`retro-loader: no sound (${failure})`)
     }
+
+    loading.hasSound = false
+    return
   }
 }
 
