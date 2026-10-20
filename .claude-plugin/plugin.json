@@ -1,0 +1,12 @@
+{
+  "name": "retro-loader",
+  "version": "0.1.0",
+  "description": "ZX Spectrum tape-loading sound and border stripes while Claude works",
+  "author": {
+    "name": "landrucode",
+    "email": "dev@landrucode.ai",
+    "url": "https://github.com/landrucode"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

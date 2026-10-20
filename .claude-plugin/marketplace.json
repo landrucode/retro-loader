@@ -1,0 +1,14 @@
+{
+  "name": "retro-loader",
+  "description": "The retro-loader Claude Code plugin: a ZX Spectrum tape-loading screen while Claude works",
+  "owner": {
+    "name": "landrucode"
+  },
+  "plugins": [
+    {
+      "name": "retro-loader",
+      "source": "./",
+      "description": "ZX Spectrum tape-loading sound and border stripes while Claude works"
+    }
+  ]
+}
