@@ -1,10 +1,8 @@
 # retro-loader
 
-A ZX Spectrum tape-loading screen that runs while Claude works.
+A classic 8-bit tape-loading screen that runs while Claude thinks.
 
-When a turn starts, a band appears above the prompt with the Spectrum's loading border: red and cyan pilot stripes, then flickering blue and yellow data stripes. The tape sound plays alongside, built from the Spectrum ROM's pulse timings. Inside the border, white paper shows `Program: claude` followed by the latest prompt, thinking, text and tool calls, each in a Spectrum ink colour. Clawd loads beside the text, pixel line by pixel line, in the order a real Spectrum fills its screen.
-
-The band hides when the turn ends.
+Recreate those halcyon days when loading a game took as long as playing it and the sound of data scraping itself from a tape on to your tv filled your bedroom. But for Claude Code.
 
 ## Install
 
@@ -24,7 +22,9 @@ claude plugin install retro-loader --marketplace landrucode/retro-loader
 
 In the desktop app: click + next to the prompt box, then Plugins, Add marketplace with `landrucode/retro-loader`, then Add plugin.
 
-## Where it shows
+## Boring Stuff
+
+### Where it shows
 
 | Surface | View |
 | --- | --- |
@@ -32,9 +32,9 @@ In the desktop app: click + next to the prompt box, then Plugins, Add marketplac
 | Desktop app | Band above the prompt, drawn as SVG |
 | VS Code extension | Band above the prompt, drawn as SVG |
 
-## Sound
+### Sound
 
-The tape sound is synthesised when the plugin loads, from the Spectrum ROM's loader pulse timings: a pilot tone, a header block naming the program `claude`, a pause, a second pilot tone, then 15 seconds of data. One loop lasts about 20 seconds and plays once per loading cycle, so the stripes stay in step with it.
+The tape sound is synthesised when the plugin loads, from a classic 8-bit computer's tape loader pulse timings: a pilot tone, a header block naming the program `claude`, a pause, a second pilot tone, then 15 seconds of data. One loop lasts about 20 seconds and plays once per loading cycle, so the stripes stay in step with it.
 
 | Platform | Player |
 | --- | --- |
@@ -44,7 +44,7 @@ The tape sound is synthesised when the plugin loads, from the Spectrum ROM's loa
 
 Where Claude Code can play the clip itself, it does. Otherwise the plugin hands the clip to the platform's player. If Linux has none of the three installed, a toast says so and the stripes run silently. Installing `pulseaudio-utils`, `pipewire` or `alsa-utils` adds one.
 
-## What it does on your machine
+### What it does on your machine
 
 - **Reads the conversation, for display only.** It reads your prompt, Claude's thinking and text, and tool names as they stream, and draws the latest lines on the loading screen. That text stays inside the plugin and on your screen. It is never passed to a program, written to a file, stored or sent anywhere.
 - **Plays a sound it generates itself.** The tape sound is built from fixed timing values when the plugin loads. On macOS it plays through Claude Code's audio playback.
@@ -55,6 +55,6 @@ Where Claude Code can play the clip itself, it does. Otherwise the plugin hands 
 - **Reads one environment variable,** `OS`, to tell Windows from Linux.
 - **Makes no network requests,** reads or writes no files, and stores no data.
 
-## Licence
+### Licence
 
 MIT.

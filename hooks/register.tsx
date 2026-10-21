@@ -534,6 +534,6 @@ export const register: Register = on => {
     await read($, svgFrame)
     const t = await elapsed($)
     svgSites.add(e.requestId)
-    return <Svg source={svgSource(plan(columns, rows, edgeRows, t), t)} alt="ZX Spectrum loading screen" />
+    return <Svg source={svgSource(plan(columns, rows, edgeRows, t), t)} alt="8-bit tape-loading screen" />
   })
 }

@@ -1,7 +1,7 @@
 {
   "name": "retro-loader",
   "version": "0.1.0",
-  "description": "ZX Spectrum tape-loading sound and border stripes while Claude works",
+  "description": "A classic 8-bit tape-loading screen that runs while Claude thinks.",
   "author": {
     "name": "landrucode",
     "email": "dev@landrucode.ai",
