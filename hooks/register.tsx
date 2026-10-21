@@ -368,27 +368,34 @@ async function elapsed($: EngineInterface): Promise<number | null> {
 type Player = 'engine' | 'host' | 'none'
 let player: Player = 'engine'
 
-const WINDOWS_PLAYER = [
-  'powershell',
-  '-NoProfile',
-  '-NonInteractive',
-  '-Command',
-  '$b = [Convert]::FromBase64String([Console]::In.ReadToEnd()); ' +
-    '(New-Object System.Media.SoundPlayer (New-Object System.IO.MemoryStream (,$b))).PlaySync()',
-]
-const LINUX_PLAYER = [
-  'sh',
-  '-c',
-  'if command -v paplay >/dev/null 2>&1; then base64 -d | paplay; ' +
-    'elif command -v pw-play >/dev/null 2>&1; then base64 -d | pw-play -; ' +
-    'elif command -v aplay >/dev/null 2>&1; then base64 -d | aplay -q; ' +
-    'else echo "no paplay, pw-play or aplay found" >&2; exit 127; fi',
-]
+// Each player's whole command is fixed text in its own spawn call, so the
+// directory's checks can read exactly what runs.
+async function spawnPlayer($: EngineInterface) {
+  if ((await $.env.get('OS')) === 'Windows_NT') {
+    return $.process.spawn({
+      argv: [
+        'powershell',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '$b = [Convert]::FromBase64String([Console]::In.ReadToEnd()); (New-Object System.Media.SoundPlayer (New-Object System.IO.MemoryStream (,$b))).PlaySync()',
+      ],
+      input: TAPE_WAV_BASE64,
+    })
+  }
+  return $.process.spawn({
+    argv: [
+      'sh',
+      '-c',
+      'if command -v paplay >/dev/null 2>&1; then base64 -d | paplay; elif command -v pw-play >/dev/null 2>&1; then base64 -d | pw-play -; elif command -v aplay >/dev/null 2>&1; then base64 -d | aplay -q; else echo "no paplay, pw-play or aplay found" >&2; exit 127; fi',
+    ],
+    input: TAPE_WAV_BASE64,
+  })
+}
 
 // Plays one clip through the host's player; resolves with why it failed, or null.
 async function playOnHost($: EngineInterface, stop: AbortController): Promise<string | null> {
-  const argv = (await $.env.get('OS')) === 'Windows_NT' ? WINDOWS_PLAYER : LINUX_PLAYER
-  const child = $.process.spawn({ argv, input: TAPE_WAV_BASE64 })
+  const child = await spawnPlayer($)
   const kill = () => void child.return(undefined as never)
   stop.signal.addEventListener('abort', kill, { once: true })
   let stderr = ''
@@ -397,12 +404,12 @@ async function playOnHost($: EngineInterface, stop: AbortController): Promise<st
       const piece = await child.next()
       if (piece.done === true) {
         if (stop.signal.aborted || piece.value.code === 0) return null
-        return stderr.trim() || `${argv[0]} exited with ${piece.value.code ?? piece.value.signal}`
+        return stderr.trim() || `the player exited with ${piece.value.code ?? piece.value.signal}`
       }
       if (piece.value.stream === 'stderr') stderr += piece.value.text
     }
   } catch (error: unknown) {
-    return stop.signal.aborted ? null : `${argv[0]}: ${String(error)}`
+    return stop.signal.aborted ? null : `the player did not start: ${String(error)}`
   } finally {
     stop.signal.removeEventListener('abort', kill)
   }

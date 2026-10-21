@@ -7,6 +7,5 @@
     "email": "dev@landrucode.ai",
     "url": "https://github.com/landrucode"
   },
-  "license": "MIT",
-  "types": "./types/index.d.ts"
+  "license": "MIT"
 }

@@ -46,13 +46,14 @@ Where Claude Code can play the clip itself, it does. Otherwise the plugin hands 
 
 ## What it does on your machine
 
-- Reads the current conversation as it streams (your prompt, Claude's thinking and text, and tool names) to draw the latest lines on the loading screen. It draws them on your screen only.
-- Plays the tape sound. On macOS it uses Claude Code's audio playback. On Windows and Linux, where Claude Code has no player, it starts one child process per 20-second loop and passes the clip to it on standard input as base64:
+- **Reads the conversation, for display only.** It reads your prompt, Claude's thinking and text, and tool names as they stream, and draws the latest lines on the loading screen. That text stays inside the plugin and on your screen. It is never passed to a program, written to a file, stored or sent anywhere.
+- **Plays a sound it generates itself.** The tape sound is built from fixed timing values when the plugin loads. On macOS it plays through Claude Code's audio playback.
+- **Starts a local audio player on Windows and Linux, and why.** Claude Code has no audio player on those platforms, so the plugin starts the platform's own one, once per 20-second loop. The only data it passes out is the generated sound clip, as base64 on the player's standard input. The player is stopped when Claude's turn ends.
   - Windows: `powershell -NoProfile -NonInteractive -Command` with a fixed script that decodes the clip and plays it with `System.Media.SoundPlayer`.
-  - Linux: `sh -c` with a fixed script that decodes the clip with `base64 -d` and pipes it to `paplay`, `pw-play` or `aplay`.
-  The process is stopped when Claude's turn ends. The full commands are in `hooks/register.tsx`.
-- Reads one environment variable, `OS`, to tell Windows from Linux.
-- Makes no network requests, reads or writes no files, and stores no data.
+  - Linux: `sh -c` with a fixed script that decodes the clip with `base64 -d` and pipes it to `paplay`, `pw-play` or `aplay`, whichever is installed.
+  The full commands are fixed text in `hooks/register.tsx`.
+- **Reads one environment variable,** `OS`, to tell Windows from Linux.
+- **Makes no network requests,** reads or writes no files, and stores no data.
 
 ## Licence
 
