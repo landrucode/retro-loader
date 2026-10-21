@@ -7,5 +7,10 @@
     "email": "dev@landrucode.ai",
     "url": "https://github.com/landrucode"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/landrucode/retro-loader",
+  "repository": "https://github.com/landrucode/retro-loader",
+  "documentationUrl": "https://github.com/landrucode/retro-loader#readme",
+  "supportUrl": "https://github.com/landrucode/retro-loader/issues",
+  "privacyPolicyUrl": "https://github.com/landrucode/retro-loader/blob/main/PRIVACY.md"
 }
