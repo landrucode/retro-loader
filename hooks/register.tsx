@@ -466,6 +466,22 @@ async function paint($: EngineInterface) {
   }
 }
 
+async function startLoading($: EngineInterface) {
+  const now = await $.clock.now()
+  if (loading !== null) return
+  const stop = new AbortController()
+  loading = { cycleStartedAt: now, hasSound: true, stop, tick: $.clock.every(FRAME_MS, () => void paint($)) }
+  void playTape($, stop)
+}
+
+async function stopLoading($: EngineInterface) {
+  if (loading === null) return
+  loading.stop.abort()
+  loading.tick.cancel()
+  loading = null
+  await paint($)
+}
+
 export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined && loading === null) {
@@ -473,14 +489,7 @@ export const register: Register = on => {
         append('text', `gap:${e.turnId}`, '')
         append('prompt', `prompt:${e.turnId}`, e.text)
       }
-      const stop = new AbortController()
-      loading = {
-        cycleStartedAt: await $.clock.now(),
-        hasSound: true,
-        stop,
-        tick: $.clock.every(FRAME_MS, () => void paint($)),
-      }
-      void playTape($, stop)
+      await startLoading($)
     }
 
     return next(e)
@@ -502,13 +511,7 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined && loading !== null) {
-      loading.stop.abort()
-      loading.tick.cancel()
-      loading = null
-      await paint($)
-    }
-
+    if (e.agentId === undefined) await stopLoading($)
     return next(e)
   })
 
@@ -516,8 +519,11 @@ export const register: Register = on => {
     if (e.props.hasSurvey || !e.props.isWorking) {
       rasterSites.delete(e.requestId)
       svgSites.delete(e.requestId)
+      if (!e.props.isWorking) await stopLoading($)
       return next(e)
     }
+    // A module loaded mid-turn missed that turn's start.
+    if (loading === null) await startLoading($)
 
     const columns = e.props.bodyColumns
     const rows = Math.min(BAND_ROWS, e.props.scroll.bodyRows)

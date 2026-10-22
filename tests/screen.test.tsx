@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
+import type { Engine, On } from 'claude-code'
 
 import { loadOrder } from '../hooks/clawd'
 import { CYCLE_S, TAPE_WAV_BASE64 } from '../hooks/tape'
@@ -15,21 +16,58 @@ function decode(cells: string, columns: number) {
   return { words, rows }
 }
 
-test('the band shows Clawd beside the program name once loaded', async $ => {
-  const ui = await $.ui.mount({
-    plugin: 'retro-loader',
-    component: 'AbovePrompt',
-    requestId: 'above-prompt',
-    surface: 'terminal',
-    props: {
-      hasSurvey: false,
-      isWorking: true,
-      maxRows: 20,
-      bodyColumns: 60,
-      scroll: { offset: 0, bodyRows: 19 },
-      view: {},
-    },
+// The engine beneath the plugin: a clock the test moves, an engine player that
+// plays the whole clip, and a surface that takes repaints and draws an empty line itself.
+function engine(on: On) {
+  const clock = mock.clock(on)
+  mock.env(on, {})
+  on('audio.play', async () => {
+    await clock.sleep(CYCLE_S * 1000)
+    return { value: undefined }
   })
+  on('ui.blit', () => ({ value: {} }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{''}</Text>
+  })
+  return clock
+}
+
+// A band that stops working ends the loading the band started.
+const endTurn = ($: Engine, band: { readonly props: typeof terminalBand.props }) =>
+  $.ui.mount({ ...band, props: { ...band.props, isWorking: false } })
+
+const terminalBand = {
+  plugin: 'retro-loader',
+  component: 'AbovePrompt',
+  requestId: 'above-prompt',
+  surface: 'terminal',
+  props: {
+    hasSurvey: false,
+    isWorking: true,
+    maxRows: 20,
+    bodyColumns: 60,
+    scroll: { offset: 0, bodyRows: 19 },
+    view: {},
+  },
+} as const
+
+test('a band drawn mid-turn starts loading rather than showing a loaded screen', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount(terminalBand)
+  const { rows, words } = decode(String((await ui.find({ type: 'Raster' }))?.props.cells), 60)
+  expect([0xd70000, 0x00d7d7]).toContain(words[1])
+  expect(rows[2]?.slice(5, 23)).toBe(' '.repeat(18))
+  await ui.unmount()
+  await endTurn($, terminalBand)
+})
+
+test('the band shows Clawd beside the program name once loaded', async ($, on) => {
+  const clock = engine(on)
+  const first = await $.ui.mount(terminalBand)
+  await clock.advance(CYCLE_S * 1000 - 50)
+  await first.unmount()
+  const ui = await $.ui.mount(terminalBand)
   const raster = await ui.find({ type: 'Raster' })
   expect(raster?.props.rows).toBe(9)
 
@@ -46,6 +84,7 @@ test('the band shows Clawd beside the program name once loaded', async $ => {
   expect(background(5 + 6, 3)).toBe(0xd7d7d7)
   expect(rows[7]).toBe('\u2580'.repeat(60))
   await ui.unmount()
+  await endTurn($, terminalBand)
 })
 
 test('pixel lines load in Spectrum order', () => {
@@ -55,21 +94,14 @@ test('pixel lines load in Spectrum order', () => {
   expect(loadOrder(192)[64]).toBe(64)
 })
 
-test('the desktop band draws the screen as an SVG with Clawd and the program name', async $ => {
-  const ui = await $.ui.mount({
-    plugin: 'retro-loader',
-    component: 'AbovePrompt',
-    requestId: 'above-prompt',
-    surface: 'desktop',
-    props: {
-      hasSurvey: false,
-      isWorking: true,
-      maxRows: 20,
-      bodyColumns: 60,
-      scroll: { offset: 0, bodyRows: 19 },
-      view: {},
-    },
-  })
+const svgBand = (surface: 'desktop' | 'vscode') => ({ ...terminalBand, surface }) as const
+
+test('the desktop band draws the screen as an SVG with Clawd and the program name', async ($, on) => {
+  const clock = engine(on)
+  const band = svgBand('desktop')
+  await (await $.ui.mount(band)).unmount()
+  await clock.advance(CYCLE_S * 1000 - 50)
+  const ui = await $.ui.mount(band)
   const svg = await ui.find({ type: 'Svg' })
   const source = String(svg?.props.source)
   expect(svg?.props.isInteractive).toBeUndefined()
@@ -79,26 +111,17 @@ test('the desktop band draws the screen as an SVG with Clawd and the program nam
   expect(source).toContain('fill="#d77757"')
   expect(source).toContain('fill="#000000"')
   await ui.unmount()
+  await endTurn($, band)
 })
 
-test('the VS Code band draws the screen as an SVG', async $ => {
-  const ui = await $.ui.mount({
-    plugin: 'retro-loader',
-    component: 'AbovePrompt',
-    requestId: 'above-prompt',
-    surface: 'vscode',
-    props: {
-      hasSurvey: false,
-      isWorking: true,
-      maxRows: 20,
-      bodyColumns: 60,
-      scroll: { offset: 0, bodyRows: 19 },
-      view: {},
-    },
-  })
+test('the VS Code band draws the screen as an SVG', async ($, on) => {
+  engine(on)
+  const band = svgBand('vscode')
+  const ui = await $.ui.mount(band)
   const svg = await ui.find({ type: 'Svg' })
   expect(String(svg?.props.source)).toContain('>Program: claude</text>')
   await ui.unmount()
+  await endTurn($, band)
 })
 
 test('the tape is one 8-bit mono WAV loop as long as the cycle', () => {
