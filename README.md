@@ -47,11 +47,22 @@ Where Claude Code can play the clip itself, it does. Otherwise the plugin hands 
 ### What it does on your machine
 
 - **Reads the conversation, for display only.** It reads your prompt, Claude's thinking and text, and tool names as they stream, and draws the latest lines on the loading screen. That text stays inside the plugin and on your screen. It is never passed to a program, written to a file, stored or sent anywhere.
-- **Plays a sound it generates itself.** The tape sound is built from fixed timing values when the plugin loads. On macOS it plays through Claude Code's audio playback.
-- **Starts a local audio player on Windows and Linux, and why.** Claude Code has no audio player on those platforms, so the plugin starts the platform's own one, once per 20-second loop. The only data it passes out is the generated sound clip, as base64 on the player's standard input. The player is stopped when Claude's turn ends.
-  - Windows: `powershell -NoProfile -NonInteractive -Command` with a fixed script that decodes the clip and plays it with `System.Media.SoundPlayer`.
-  - Linux: `sh -c` with a fixed script that decodes the clip with `base64 -d` and pipes it to `paplay`, `pw-play` or `aplay`, whichever is installed.
-  The full commands are fixed text in `hooks/register.tsx`.
+- **Plays a sound it generates itself.** The tape sound is built from fixed timing values when the plugin loads. On macOS it plays through Claude Code's audio playback: the `$.audio.play` call sends the generated WAV clip to Claude Code, which plays it on the local speakers. Nothing else goes with it.
+- **Starts a local audio player on Windows and Linux, and why.** Claude Code has no audio player on those platforms, so the plugin starts the platform's own one through `$.process.spawn`, once per 20-second loop. The only data it passes out is the generated sound clip, as base64 on the player's standard input. The player is stopped when Claude's turn ends.
+
+  It runs a shell rather than the player directly because a child's standard input takes text only, so the clip crosses as base64 and has to be decoded before it reaches the player. These are the exact commands, word for word:
+
+  Windows:
+
+  ```text
+  powershell -NoProfile -NonInteractive -Command "$b = [Convert]::FromBase64String([Console]::In.ReadToEnd()); (New-Object System.Media.SoundPlayer (New-Object System.IO.MemoryStream (,$b))).PlaySync()"
+  ```
+
+  Linux:
+
+  ```text
+  sh -c 'if command -v paplay >/dev/null 2>&1; then base64 -d | paplay; elif command -v pw-play >/dev/null 2>&1; then base64 -d | pw-play -; elif command -v aplay >/dev/null 2>&1; then base64 -d | aplay -q; else echo "no paplay, pw-play or aplay found" >&2; exit 127; fi'
+  ```
 - **Reads one environment variable,** `OS`, to tell Windows from Linux.
 - **Makes no network requests,** reads or writes no files, and stores no data.
 
